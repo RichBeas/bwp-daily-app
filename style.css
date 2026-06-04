@@ -75,3 +75,8 @@
     line-height: 1.45;
   }
 }
+/* Hide top status box and meta row */
+.status,
+.meta {
+  display: none !important;
+}

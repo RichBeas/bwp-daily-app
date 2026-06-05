@@ -5,7 +5,7 @@ import './style.css';
 
 const SOURCE_URL = 'https://bible.alpha.org/en/#todays-devotion';
 const CLASSIC_DAY_URL = 'https://bible.alpha.org/en/classic/';
-const HISTORY_KEY = 'bwp-devotion-history-v2';
+const HISTORY_KEY = 'bwp-devotion-history-v3';
 const NOTES_KEY = 'bwp-devotion-notes';
 
 const BIBLE_BOOKS = [
@@ -22,48 +22,13 @@ const BIBLE_BOOKS = [
 ];
 
 const LEADERSHIP_IDEAS = [
-  {
-    theme: 'Clarity',
-    keywords: ['wisdom', 'truth', 'word', 'listen', 'hear', 'teach', 'understand'],
-    idea: 'Clarify one priority today so the team knows what matters most.',
-    question: 'Where does BWP need less noise and more direction?'
-  },
-  {
-    theme: 'Courage',
-    keywords: ['fear', 'enemy', 'battle', 'bold', 'courage', 'strong', 'stand'],
-    idea: 'Name one difficult issue early and handle it with calm honesty.',
-    question: 'What conversation should not be delayed?'
-  },
-  {
-    theme: 'Gratitude',
-    keywords: ['praise', 'thanks', 'thanksgiving', 'worship', 'joy', 'bless'],
-    idea: 'Create a moment of visible appreciation in the business today.',
-    question: 'Who needs to hear that their contribution matters?'
-  },
-  {
-    theme: 'Service',
-    keywords: ['serve', 'poor', 'help', 'mercy', 'compassion', 'give', 'love'],
-    idea: 'Look for one practical way to make another person’s job easier.',
-    question: 'Where can leadership remove friction today?'
-  },
-  {
-    theme: 'Wisdom',
-    keywords: ['pray', 'prayer', 'ask', 'discern', 'wise', 'counsel', 'spirit'],
-    idea: 'Pause before repeating an old tactic; ask what this moment requires.',
-    question: 'What has changed since the last time we made this decision?'
-  },
-  {
-    theme: 'Unity',
-    keywords: ['together', 'one', 'peace', 'body', 'people', 'church', 'family'],
-    idea: 'Bring two parts of the business closer together around a shared aim.',
-    question: 'Where are teams hearing different versions of the same goal?'
-  },
-  {
-    theme: 'Stewardship',
-    keywords: ['faithful', 'money', 'work', 'build', 'house', 'fruit', 'harvest'],
-    idea: 'Treat time, money, energy, and attention as resources to protect.',
-    question: 'What deserves more focus, and what should stop draining energy?'
-  }
+  { theme: 'Clarity', keywords: ['wisdom', 'truth', 'word', 'listen', 'hear', 'teach', 'understand'], idea: 'Clarify one priority today so the team knows what matters most.', question: 'Where does BWP need less noise and more direction?' },
+  { theme: 'Courage', keywords: ['fear', 'enemy', 'battle', 'bold', 'courage', 'strong', 'stand'], idea: 'Name one difficult issue early and handle it with calm honesty.', question: 'What conversation should not be delayed?' },
+  { theme: 'Gratitude', keywords: ['praise', 'thanks', 'thanksgiving', 'worship', 'joy', 'bless'], idea: 'Create a moment of visible appreciation in the business today.', question: 'Who needs to hear that their contribution matters?' },
+  { theme: 'Service', keywords: ['serve', 'poor', 'help', 'mercy', 'compassion', 'give', 'love'], idea: 'Look for one practical way to make another person’s job easier.', question: 'Where can leadership remove friction today?' },
+  { theme: 'Wisdom', keywords: ['pray', 'prayer', 'ask', 'discern', 'wise', 'counsel', 'spirit'], idea: 'Pause before repeating an old tactic; ask what this moment requires.', question: 'What has changed since the last time we made this decision?' },
+  { theme: 'Unity', keywords: ['together', 'one', 'peace', 'body', 'people', 'church', 'family'], idea: 'Bring two parts of the business closer together around a shared aim.', question: 'Where are teams hearing different versions of the same goal?' },
+  { theme: 'Stewardship', keywords: ['faithful', 'money', 'work', 'build', 'house', 'fruit', 'harvest'], idea: 'Treat time, money, energy, and attention as resources to protect.', question: 'What deserves more focus, and what should stop draining energy?' }
 ];
 
 function dayOfYear(date = new Date()) {
@@ -93,90 +58,105 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function referenceRegex() {
-  const booksPattern = BIBLE_BOOKS
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegex)
-    .join('|');
+function booksPattern() {
+  return BIBLE_BOOKS.sort((a, b) => b.length - a.length).map(escapeRegex).join('|');
+}
 
-  return new RegExp(
-    `\\b(?:${booksPattern})\\s+\\d{1,3}:\\d{1,3}(?:[–-]\\d{1,3})?(?:\\s*[–-]\\s*\\d{1,3}:\\d{1,3}(?:[–-]\\d{1,3})?)?`,
-    'gi'
-  );
+function referencePatternSource() {
+  return `(?:${booksPattern()})\\s+\\d{1,3}:\\d{1,3}(?:[–-]\\d{1,3})?(?:\\s*[–-]\\s*\\d{1,3}:\\d{1,3}(?:[–-]\\d{1,3})?)?`;
 }
 
 function cleanReference(ref) {
   return ref.replace(/\s+/g, ' ').replace(/\s*[–-]\s*/g, '-').trim();
 }
 
-function extractReadingSections(text) {
-  const regex = referenceRegex();
-  const matches = [...text.matchAll(regex)];
+function extractAlphaMainReadings(text) {
+  const ref = referencePatternSource();
+
+  const labelledPatterns = [
+    { label: 'Wisdom', regex: new RegExp(`Wisdom\\s+(${ref})`, 'i') },
+    { label: 'New Testament', regex: new RegExp(`New Testament\\s+(${ref})`, 'i') },
+    { label: 'Old Testament', regex: new RegExp(`Old Testament\\s+(${ref})`, 'i') }
+  ];
+
+  const labelled = labelledPatterns
+    .map((item) => {
+      const match = text.match(item.regex);
+      return match ? { label: item.label, reference: cleanReference(match[1]) } : null;
+    })
+    .filter(Boolean);
+
+  if (labelled.length === 3) return labelled;
+
+  // Fallback: use the first three references, but ignore common commentary cross-references by taking references
+  // that occur before the Introduction heading when possible.
+  const introIndex = text.toLowerCase().indexOf('introduction');
+  const topText = introIndex > 0 ? text.slice(0, introIndex) : text.slice(0, 1000);
+  const regex = new RegExp(ref, 'gi');
+  const matches = topText.match(regex) || [];
 
   const unique = [];
-  const seen = new Set();
-
   for (const match of matches) {
-    const reference = cleanReference(match[0]);
-    const key = reference.toLowerCase();
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push({
-        reference,
-        index: match.index
-      });
+    const reference = cleanReference(match);
+    if (!unique.some((item) => item.reference.toLowerCase() === reference.toLowerCase())) {
+      unique.push({ label: unique.length === 0 ? 'Wisdom' : unique.length === 1 ? 'New Testament' : 'Old Testament', reference });
     }
-
     if (unique.length >= 3) break;
   }
 
-  return unique.map((item, index) => {
-    const next = unique[index + 1];
-    const sectionStart = item.index;
-    const sectionEnd = next ? next.index : Math.min(text.length, item.index + 1800);
-    const sectionText = text.slice(sectionStart, sectionEnd).replace(/\s+/g, ' ').trim();
+  return unique;
+}
 
-    return {
-      reference: item.reference,
-      text: sectionText
-    };
-  });
+function extractReadingSection(text, reference, fallbackLength = 1900) {
+  const index = text.indexOf(reference.replace(/-/g, '–'));
+  const altIndex = text.indexOf(reference);
+  const start = index >= 0 ? index : altIndex;
+
+  if (start < 0) return '';
+
+  const after = text.slice(start);
+  const markers = ['## Commentary', 'Commentary', '## Prayer', 'Prayer'];
+  let end = fallbackLength;
+
+  for (const marker of markers) {
+    const markerIndex = after.indexOf(marker);
+    if (markerIndex > 50) {
+      end = Math.min(end, markerIndex);
+    }
+  }
+
+  return after.slice(0, end).replace(/\s+/g, ' ').trim();
 }
 
 function scoreSentence(sentence) {
   const lower = sentence.toLowerCase();
-  const keywords = [
-    'god', 'jesus', 'spirit', 'lord', 'pray', 'prayer', 'wisdom', 'love', 'faith',
-    'hope', 'serve', 'lead', 'heart', 'trust', 'peace', 'joy', 'truth', 'power',
-    'courage', 'mercy', 'grace', 'forgive', 'praise', 'listen', 'call'
-  ];
+  const keywords = ['god', 'jesus', 'spirit', 'lord', 'pray', 'prayer', 'wisdom', 'love', 'faith', 'hope', 'serve', 'lead', 'heart', 'trust', 'peace', 'joy', 'truth', 'power', 'courage', 'mercy', 'grace', 'forgive', 'praise', 'listen', 'call'];
 
   let score = 0;
   for (const keyword of keywords) {
     if (lower.includes(keyword)) score += 1;
   }
 
-  if (sentence.length >= 70 && sentence.length <= 220) score += 2;
-  if (sentence.length > 260) score -= 2;
+  if (sentence.length >= 70 && sentence.length <= 230) score += 2;
+  if (sentence.length > 280) score -= 2;
 
   return score;
 }
 
-function summariseReading(sectionText, fallbackReference) {
+function summariseReading(sectionText, label, reference) {
   const sentences = sectionText.match(/[^.!?]+[.!?]+/g) || [];
   const candidates = sentences
     .map((s) => s.trim())
-    .filter((s) => s.length > 45 && s.length < 280)
+    .filter((s) => s.length > 45 && s.length < 300)
+    .filter((s) => !s.startsWith(reference))
     .sort((a, b) => scoreSentence(b) - scoreSentence(a));
 
-  const picked = candidates.slice(0, 2);
-
-  if (picked.length) {
-    return picked.join(' ');
+  if (candidates.length) {
+    return candidates.slice(0, 2).join(' ');
   }
 
-  return `Use this reading, ${fallbackReference}, as part of today’s reflection. Open the source for the full passage and commentary.`;
+  const labelText = label ? `${label} reading` : 'reading';
+  return `The ${labelText}, ${reference}, is part of today’s three-part Alpha reading. Open the source for the full passage and commentary.`;
 }
 
 function detectThemes(text) {
@@ -192,18 +172,13 @@ function detectThemes(text) {
 }
 
 function buildBwpRelevance(readingSummaries) {
-  const combined = readingSummaries
-    .map((item) => `${item.reference}. ${item.summary}`)
-    .join(' ');
-
+  const combined = readingSummaries.map((item) => `${item.label}: ${item.reference}. ${item.summary}`).join(' ');
   const themes = detectThemes(combined).filter((item) => item.score > 0);
   const selected = themes.length ? themes : LEADERSHIP_IDEAS.slice(0, 3);
 
   const relevance = selected.map((item) => `${item.theme}: ${item.idea} ${item.question}`);
 
-  relevance.push(
-    'Joined-up leadership: read the three passages together, then ask what one repeated message is saying about the way BWP should lead, communicate, decide, and serve today.'
-  );
+  relevance.push('Joined-up leadership: read the Wisdom, New Testament and Old Testament passages together, then ask what one repeated message is saying about the way BWP should lead, communicate, decide and serve today.');
 
   return relevance;
 }
@@ -213,29 +188,33 @@ function buildLocalSummary(text) {
   const dayMatch = text.match(/Day\s+(\d+)/i);
   const title = titleMatch ? titleMatch[0].trim() : `Day ${dayOfYear()}`;
 
-  const sections = extractReadingSections(text);
+  const mainReadings = extractAlphaMainReadings(text);
 
-  const readingSummaries = sections.length
-    ? sections.map((section) => ({
-        reference: section.reference,
-        summary: summariseReading(section.text, section.reference)
-      }))
+  const readingSummaries = mainReadings.length
+    ? mainReadings.map((reading) => {
+        const sectionText = extractReadingSection(text, reading.reference);
+        return {
+          label: reading.label,
+          reference: reading.reference,
+          summary: summariseReading(sectionText, reading.label, reading.reference)
+        };
+      })
     : [
         {
-          reference: 'Source reading',
+          label: 'Source',
+          reference: 'Alpha source reading',
           summary: 'Open the Alpha source reading for today’s three passages and commentary.'
         }
       ];
 
-  const combinedSummary = readingSummaries.map((item) => `${item.reference}: ${item.summary}`);
   const relevance = buildBwpRelevance(readingSummaries);
 
   return {
     title,
     day: dayMatch ? Number(dayMatch[1]) : dayOfYear(),
     readingSummaries,
-    readings: readingSummaries.map((item) => `Reading: ${item.reference}`),
-    summary: combinedSummary,
+    readings: readingSummaries.map((item) => `${item.label}: ${item.reference}`),
+    summary: readingSummaries.map((item) => `${item.label} — ${item.reference}: ${item.summary}`),
     relevance
   };
 }
@@ -257,7 +236,10 @@ async function fetchDevotion() {
 
 function loadHistory() {
   try {
-    const v2 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    const v3 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    if (v3) return v3;
+
+    const v2 = JSON.parse(localStorage.getItem('bwp-devotion-history-v2'));
     if (v2) return v2;
 
     const old = JSON.parse(localStorage.getItem('bwp-devotion-history-v1'));
@@ -350,7 +332,8 @@ function App() {
           displayDate: formatDisplayDate(today),
           readingSummaries: [
             {
-              reference: 'Source reading',
+              label: 'Source',
+              reference: 'Alpha source reading',
               summary: 'Open the source link to view and reflect on today’s three passages.'
             }
           ],
@@ -413,7 +396,7 @@ function App() {
                     <h3>Saved three-reading summary</h3>
                     {(item.saved.readingSummaries || []).map((reading, index) => (
                       <div className="reading-summary" key={index}>
-                        <strong>{reading.reference}</strong>
+                        <strong>{reading.label}: {reading.reference}</strong>
                         <p>{reading.summary}</p>
                       </div>
                     ))}
@@ -439,7 +422,7 @@ function App() {
       <section className="hero">
         <p className="eyebrow">Daily 6:00 AM reflection</p>
         <h1>BWP Daily Devotion</h1>
-        <p>Three Alpha Bible readings, summarized and translated into practical relevance for running BWP Group.</p>
+        <p>Wisdom, New Testament and Old Testament readings, summarized and translated into practical relevance for running BWP Group.</p>
 
         <div className="actions">
           <button onClick={load}><RefreshCw size={16} /> Refresh today</button>
@@ -464,7 +447,7 @@ function App() {
             <h3>Today’s three readings</h3>
             {(data.readingSummaries || []).map((reading, i) => (
               <div className="reading-summary" key={i}>
-                <strong>{reading.reference}</strong>
+                <strong>{reading.label}: {reading.reference}</strong>
                 <p>{reading.summary}</p>
               </div>
             ))}

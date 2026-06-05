@@ -555,6 +555,89 @@ function App() {
     setAutoPulling(false);
   }
 
+  async function rebuildAllHistory() {
+    setRebuilding(true);
+    setError('');
+
+    const archive = makeArchiveSinceJan().reverse(); // oldest first
+    let currentHistory = loadHistory();
+    let completed = 0;
+    let failed = 0;
+
+    for (const item of archive) {
+      setRebuildProgress(`Rebuilding ${completed + 1} of ${archive.length}: ${item.displayDate}`);
+
+      try {
+        const result = await fetchDevotionForDate(item.date);
+        const savedEntry = {
+          ...result,
+          text: undefined,
+          dateKey: item.dateKey,
+          displayDate: item.displayDate,
+          savedAt: new Date().toISOString()
+        };
+
+        currentHistory = [savedEntry, ...currentHistory.filter((existing) => existing.dateKey !== item.dateKey)].slice(0, 370);
+        saveHistoryList(currentHistory);
+        setHistory([...currentHistory]);
+
+        if (item.dateKey === todayKey) setData(savedEntry);
+
+        completed += 1;
+      } catch {
+        failed += 1;
+      }
+
+      await sleep(450);
+    }
+
+    setRebuildProgress(`Done. Rebuilt ${completed} days${failed ? `, ${failed} failed` : ''}.`);
+    setRebuilding(false);
+  }
+
+  async function autoPullMissingOnly() {
+    setRebuilding(true);
+    setError('');
+
+    const archive = makeArchiveSinceJan().reverse(); // oldest first
+    let currentHistory = loadHistory();
+    const savedKeys = new Set(currentHistory.map((item) => item.dateKey));
+    const missing = archive.filter((item) => !savedKeys.has(item.dateKey));
+
+    let completed = 0;
+    let failed = 0;
+
+    for (const item of missing) {
+      setRebuildProgress(`Pulling ${completed + 1} of ${missing.length}: ${item.displayDate}`);
+
+      try {
+        const result = await fetchDevotionForDate(item.date);
+        const savedEntry = {
+          ...result,
+          text: undefined,
+          dateKey: item.dateKey,
+          displayDate: item.displayDate,
+          savedAt: new Date().toISOString()
+        };
+
+        currentHistory = [savedEntry, ...currentHistory.filter((existing) => existing.dateKey !== item.dateKey)].slice(0, 370);
+        saveHistoryList(currentHistory);
+        setHistory([...currentHistory]);
+
+        if (item.dateKey === todayKey) setData(savedEntry);
+
+        completed += 1;
+      } catch {
+        failed += 1;
+      }
+
+      await sleep(450);
+    }
+
+    setRebuildProgress(`Done. Pulled ${completed} missing days${failed ? `, ${failed} failed` : ''}.`);
+    setRebuilding(false);
+  }
+
   useEffect(() => { loadToday(); }, []);
   useEffect(() => { localStorage.setItem(NOTES_KEY, notes); }, [notes]);
 

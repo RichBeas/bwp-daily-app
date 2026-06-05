@@ -160,7 +160,7 @@ button.secondary {
   padding-right: 18px;
 }
 
-.idea {
+.idea, .reading-summary {
   background: #fff7ed;
   border: 1px solid #fed7aa;
   border-radius: 18px;
@@ -168,7 +168,13 @@ button.secondary {
   margin-top: 16px;
 }
 
-.idea p { margin: 7px 0 0; }
+.idea p, .reading-summary p {
+  margin: 7px 0 0;
+}
+
+.reading-summary strong {
+  color: #7c2d12;
+}
 
 .history-detail { margin-top: 18px; }
 

@@ -234,3 +234,8 @@ textarea {
   .history-top { grid-template-columns: 1fr; }
   .history-top button { width: 100%; }
 }
+
+
+.reading-summary b {
+  color: #9a3412;
+}

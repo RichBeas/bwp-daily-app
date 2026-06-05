@@ -172,6 +172,61 @@ function summariseReading(sectionText, label, reference) {
   return `The ${label} reading, ${reference}, is part of today’s three-part Alpha reading. Open the source for the full passage and commentary.`;
 }
 
+
+function valuesLensForReading(summary) {
+  const text = summary.toLowerCase();
+
+  const lenses = [
+    {
+      value: 'Human',
+      triggers: ['love', 'mercy', 'compassion', 'serve', 'poor', 'help', 'forgive', 'heart', 'peace', 'people', 'family', 'neighbour'],
+      observation: 'This reading has a Human lens: it points towards people, care, mercy, understanding and the way decisions affect real lives.',
+      thought: 'For BWP, this asks us to lead with empathy before efficiency. Notice the person behind the task, client challenge or internal pressure.'
+    },
+    {
+      value: 'Passionate',
+      triggers: ['praise', 'joy', 'bold', 'spirit', 'power', 'fire', 'worship', 'zeal', 'call', 'send', 'life', 'hope'],
+      observation: 'This reading has a Passionate lens: it carries energy, conviction, hope, worship or a call to wholehearted action.',
+      thought: 'For BWP, this asks us to bring positive energy and belief to the work, not just process. Passion should lift the room and move people forward.'
+    },
+    {
+      value: 'Impact',
+      triggers: ['fruit', 'harvest', 'build', 'work', 'faithful', 'truth', 'teach', 'word', 'understand', 'change', 'grow', 'kingdom'],
+      observation: 'This reading has an Impact lens: it points towards fruit, growth, truth, building well and creating outcomes that last.',
+      thought: 'For BWP, this asks us to focus on what changes because of our work. Activity matters less than meaningful progress for clients, people and the business.'
+    },
+    {
+      value: 'Brave',
+      triggers: ['fear', 'battle', 'enemy', 'courage', 'strong', 'stand', 'bold', 'truth', 'justice', 'false', 'wicked', 'trouble', 'suffer'],
+      observation: 'This reading has a Brave lens: it points towards courage, truth, standing firm or facing pressure honestly.',
+      thought: 'For BWP, this asks us not to avoid the hard thing. Brave leadership names reality clearly and takes the next honest step.'
+    }
+  ];
+
+  const scored = lenses
+    .map((lens) => ({
+      ...lens,
+      score: lens.triggers.reduce((total, trigger) => total + (text.includes(trigger) ? 1 : 0), 0)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+
+  if (!best || best.score === 0) {
+    return {
+      value: 'Values reflection',
+      observation: 'This reading invites reflection on how belief becomes behaviour.',
+      thought: 'For BWP, use it to ask which value needs to be most visible today: Human, Passionate, Impact or Brave.'
+    };
+  }
+
+  return {
+    value: best.value,
+    observation: best.observation,
+    thought: best.thought
+  };
+}
+
 function detectThemes(text) {
   const lower = text.toLowerCase();
 
@@ -185,15 +240,62 @@ function detectThemes(text) {
 }
 
 function buildBwpRelevance(readingSummaries) {
-  const combined = readingSummaries.map((item) => `${item.label}: ${item.reference}. ${item.summary}`).join(' ');
-  const themes = detectThemes(combined).filter((item) => item.score > 0);
-  const selected = themes.length ? themes : LEADERSHIP_IDEAS.slice(0, 3);
+  const combinedOriginal = readingSummaries
+    .map((item) => `${item.label}: ${item.reference}. ${item.summary}`)
+    .join(' ');
 
-  const relevance = selected.map((item) => `${item.theme}: ${item.idea} ${item.question}`);
-  relevance.push('Joined-up leadership: read the Wisdom, New Testament and Old Testament passages together, then ask what one repeated message is saying about the way BWP should lead, communicate, decide and serve today.');
+  const combined = combinedOriginal.toLowerCase();
 
-  return relevance;
+  const valueBank = [
+    {
+      value: 'Human',
+      triggers: ['love', 'mercy', 'compassion', 'serve', 'poor', 'help', 'forgive', 'heart', 'peace', 'people', 'family', 'neighbour'],
+      relevance: 'Human: read through the lens of people first. Today’s readings ask BWP to notice the person behind the task, client brief, pressure or problem.',
+      action: 'Ask where someone needs more care, clarity or support today, then act on it.'
+    },
+    {
+      value: 'Passionate',
+      triggers: ['praise', 'joy', 'bold', 'spirit', 'power', 'fire', 'worship', 'zeal', 'call', 'send', 'life', 'hope'],
+      relevance: 'Passionate: the readings point towards energy with purpose, not noise. BWP should bring conviction, belief and positive momentum to the work.',
+      action: 'Choose one piece of work that needs fresh energy and personally lift the tone around it.'
+    },
+    {
+      value: 'Impact',
+      triggers: ['fruit', 'harvest', 'build', 'work', 'faithful', 'truth', 'teach', 'word', 'understand', 'change', 'grow', 'kingdom'],
+      relevance: 'Impact: the readings challenge BWP to focus on outcomes that last. Activity is not the same as impact; the question is what changes because of the work.',
+      action: 'Identify one meeting, client action or internal task that should create measurable progress today.'
+    },
+    {
+      value: 'Brave',
+      triggers: ['fear', 'battle', 'enemy', 'courage', 'strong', 'stand', 'bold', 'truth', 'justice', 'false', 'wicked', 'trouble', 'suffer'],
+      relevance: 'Brave: the readings point towards honest courage. BWP should not avoid the hard conversation, difficult decision or uncomfortable truth.',
+      action: 'Name one issue that needs courage today and take the next honest step.'
+    }
+  ];
+
+  const scored = valueBank
+    .map((item) => ({
+      ...item,
+      score: item.triggers.reduce((total, trigger) => total + (combined.includes(trigger) ? 1 : 0), 0)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const selected = scored.filter((item) => item.score > 0).slice(0, 3);
+  const chosen = selected.length ? selected : valueBank;
+
+  const references = readingSummaries
+    .map((item) => `${item.label}: ${item.reference}`)
+    .join('; ');
+
+  const readingSpecificOpening = `Based on today’s three readings — ${references} — the strongest BWP application is to turn the spiritual message into visible leadership behaviour.`;
+
+  return [
+    readingSpecificOpening,
+    ...chosen.map((item) => `${item.relevance} Today’s action: ${item.action}`),
+    'Values check: before the day ends, ask whether one decision or conversation has been made more Human, more Passionate, more Impact-focused or more Brave because of these readings.'
+  ];
 }
+
 
 function buildLocalSummary(text, date = new Date()) {
   const titleMatch = text.match(/Day\s+\d+[:\-–]\s*([^|]{3,80})/i);
@@ -205,10 +307,16 @@ function buildLocalSummary(text, date = new Date()) {
   const readingSummaries = mainReadings.length
     ? mainReadings.map((reading) => {
         const sectionText = extractReadingSection(text, reading.reference);
+        const summary = summariseReading(sectionText, reading.label, reading.reference);
+        const lens = valuesLensForReading(summary);
+
         return {
           label: reading.label,
           reference: reading.reference,
-          summary: summariseReading(sectionText, reading.label, reading.reference)
+          summary,
+          value: lens.value,
+          valuesObservation: lens.observation,
+          bwpThought: lens.thought
         };
       })
     : [
@@ -505,11 +613,14 @@ function App() {
               <div className="history-detail">
                 {item.saved ? (
                   <>
-                    <h3>Saved three-reading summary</h3>
+                    <h3>Saved three-reading observations</h3>
                     {(item.saved.readingSummaries || []).map((reading, index) => (
                       <div className="reading-summary" key={index}>
                         <strong>{reading.label}: {reading.reference}</strong>
-                        <p>{reading.summary}</p>
+                        <p><b>Observation:</b> {reading.summary}</p>
+                        {reading.value && <p><b>BWP value lens:</b> {reading.value}</p>}
+                        {reading.valuesObservation && <p>{reading.valuesObservation}</p>}
+                        {reading.bwpThought && <p><b>BWP thought:</b> {reading.bwpThought}</p>}
                       </div>
                     ))}
 
@@ -543,7 +654,7 @@ function App() {
       <section className="hero">
         <p className="eyebrow">Daily 6:00 AM reflection</p>
         <h1>BWP Daily Devotion</h1>
-        <p>Wisdom, New Testament and Old Testament readings, summarized and translated into practical relevance for running BWP Group.</p>
+        <p>Wisdom, New Testament and Old Testament readings, summarized and translated into practical relevance for BWP’s values: Human, Passionate, Impact and Brave.</p>
 
         <div className="actions">
           <button onClick={loadToday}><RefreshCw size={16} /> Refresh today</button>
@@ -565,11 +676,14 @@ function App() {
           </section>
 
           <section className="card">
-            <h3>Today’s three readings</h3>
+            <h3>Today’s three readings and BWP values lens</h3>
             {(data.readingSummaries || []).map((reading, i) => (
               <div className="reading-summary" key={i}>
                 <strong>{reading.label}: {reading.reference}</strong>
-                <p>{reading.summary}</p>
+                <p><b>Observation:</b> {reading.summary}</p>
+                {reading.value && <p><b>BWP value lens:</b> {reading.value}</p>}
+                {reading.valuesObservation && <p>{reading.valuesObservation}</p>}
+                {reading.bwpThought && <p><b>BWP thought:</b> {reading.bwpThought}</p>}
               </div>
             ))}
           </section>
@@ -581,7 +695,7 @@ function App() {
 
           <section className="card">
             <h3>Richard’s leadership notes</h3>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What do the three readings say to BWP today? What should I act on?" />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What do the three readings say about being Human, Passionate, Impact-focused or Brave today?" />
           </section>
         </>
       )}

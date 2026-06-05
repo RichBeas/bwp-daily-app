@@ -87,6 +87,11 @@ button.secondary {
   border: 1px solid rgba(234, 88, 12, 0.18);
 }
 
+button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .card, .warning, .archive-intro {
   background: #ffffff;
   border: 1px solid #fed7aa;
@@ -107,6 +112,8 @@ button.secondary {
 }
 
 .card a {
+  display: inline-block;
+  margin-top: 16px;
   color: #c2410c;
   font-weight: 800;
 }
@@ -176,7 +183,13 @@ button.secondary {
   color: #7c2d12;
 }
 
-.history-detail { margin-top: 18px; }
+.history-detail {
+  margin-top: 18px;
+}
+
+.history-detail button {
+  margin-top: 12px;
+}
 
 textarea {
   width: 100%;

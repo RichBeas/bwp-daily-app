@@ -5,7 +5,7 @@ import './style.css';
 
 const SOURCE_URL = 'https://bible.alpha.org/en/#todays-devotion';
 const CLASSIC_DAY_URL = 'https://bible.alpha.org/en/classic/';
-const HISTORY_KEY = 'bwp-devotion-history-v3';
+const HISTORY_KEY = 'bwp-devotion-history-v4';
 const NOTES_KEY = 'bwp-devotion-notes';
 
 const BIBLE_BOOKS = [
@@ -88,10 +88,8 @@ function extractAlphaMainReadings(text) {
 
   if (labelled.length === 3) return labelled;
 
-  // Fallback: use the first three references, but ignore common commentary cross-references by taking references
-  // that occur before the Introduction heading when possible.
   const introIndex = text.toLowerCase().indexOf('introduction');
-  const topText = introIndex > 0 ? text.slice(0, introIndex) : text.slice(0, 1000);
+  const topText = introIndex > 0 ? text.slice(0, introIndex) : text.slice(0, 1200);
   const regex = new RegExp(ref, 'gi');
   const matches = topText.match(regex) || [];
 
@@ -99,7 +97,10 @@ function extractAlphaMainReadings(text) {
   for (const match of matches) {
     const reference = cleanReference(match);
     if (!unique.some((item) => item.reference.toLowerCase() === reference.toLowerCase())) {
-      unique.push({ label: unique.length === 0 ? 'Wisdom' : unique.length === 1 ? 'New Testament' : 'Old Testament', reference });
+      unique.push({
+        label: unique.length === 0 ? 'Wisdom' : unique.length === 1 ? 'New Testament' : 'Old Testament',
+        reference
+      });
     }
     if (unique.length >= 3) break;
   }
@@ -107,22 +108,33 @@ function extractAlphaMainReadings(text) {
   return unique;
 }
 
-function extractReadingSection(text, reference, fallbackLength = 1900) {
-  const index = text.indexOf(reference.replace(/-/g, '–'));
-  const altIndex = text.indexOf(reference);
-  const start = index >= 0 ? index : altIndex;
+function findReferenceIndex(text, reference) {
+  const variants = [
+    reference,
+    reference.replace(/-/g, '–'),
+    reference.replace(/-/g, ' - '),
+    reference.replace(/-/g, ' – ')
+  ];
 
+  for (const variant of variants) {
+    const index = text.indexOf(variant);
+    if (index >= 0) return index;
+  }
+
+  return -1;
+}
+
+function extractReadingSection(text, reference, fallbackLength = 1900) {
+  const start = findReferenceIndex(text, reference);
   if (start < 0) return '';
 
   const after = text.slice(start);
-  const markers = ['## Commentary', 'Commentary', '## Prayer', 'Prayer'];
+  const markers = ['Commentary', 'Prayer', 'Pippa Adds'];
   let end = fallbackLength;
 
   for (const marker of markers) {
     const markerIndex = after.indexOf(marker);
-    if (markerIndex > 50) {
-      end = Math.min(end, markerIndex);
-    }
+    if (markerIndex > 80) end = Math.min(end, markerIndex);
   }
 
   return after.slice(0, end).replace(/\s+/g, ' ').trim();
@@ -151,12 +163,9 @@ function summariseReading(sectionText, label, reference) {
     .filter((s) => !s.startsWith(reference))
     .sort((a, b) => scoreSentence(b) - scoreSentence(a));
 
-  if (candidates.length) {
-    return candidates.slice(0, 2).join(' ');
-  }
+  if (candidates.length) return candidates.slice(0, 2).join(' ');
 
-  const labelText = label ? `${label} reading` : 'reading';
-  return `The ${labelText}, ${reference}, is part of today’s three-part Alpha reading. Open the source for the full passage and commentary.`;
+  return `The ${label} reading, ${reference}, is part of today’s three-part Alpha reading. Open the source for the full passage and commentary.`;
 }
 
 function detectThemes(text) {
@@ -177,16 +186,15 @@ function buildBwpRelevance(readingSummaries) {
   const selected = themes.length ? themes : LEADERSHIP_IDEAS.slice(0, 3);
 
   const relevance = selected.map((item) => `${item.theme}: ${item.idea} ${item.question}`);
-
   relevance.push('Joined-up leadership: read the Wisdom, New Testament and Old Testament passages together, then ask what one repeated message is saying about the way BWP should lead, communicate, decide and serve today.');
 
   return relevance;
 }
 
-function buildLocalSummary(text) {
+function buildLocalSummary(text, date = new Date()) {
   const titleMatch = text.match(/Day\s+\d+[:\-–]\s*([^|]{3,80})/i);
   const dayMatch = text.match(/Day\s+(\d+)/i);
-  const title = titleMatch ? titleMatch[0].trim() : `Day ${dayOfYear()}`;
+  const title = titleMatch ? titleMatch[0].trim() : `Day ${dayOfYear(date)}`;
 
   const mainReadings = extractAlphaMainReadings(text);
 
@@ -211,7 +219,7 @@ function buildLocalSummary(text) {
 
   return {
     title,
-    day: dayMatch ? Number(dayMatch[1]) : dayOfYear(),
+    day: dayMatch ? Number(dayMatch[1]) : dayOfYear(date),
     readingSummaries,
     readings: readingSummaries.map((item) => `${item.label}: ${item.reference}`),
     summary: readingSummaries.map((item) => `${item.label} — ${item.reference}: ${item.summary}`),
@@ -219,9 +227,9 @@ function buildLocalSummary(text) {
   };
 }
 
-async function fetchDevotion() {
-  const todayUrl = getReadingUrl();
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(todayUrl)}`;
+async function fetchDevotionForDate(date) {
+  const url = getReadingUrl(date);
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
   const response = await fetch(proxyUrl);
 
   if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
@@ -231,12 +239,19 @@ async function fetchDevotion() {
 
   if (!text || text.length < 500) throw new Error('Fetched page did not contain enough readable text.');
 
-  return { url: todayUrl, text, ...buildLocalSummary(text) };
+  return {
+    url,
+    text,
+    ...buildLocalSummary(text, date)
+  };
 }
 
 function loadHistory() {
   try {
-    const v3 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    const v4 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    if (v4) return v4;
+
+    const v3 = JSON.parse(localStorage.getItem('bwp-devotion-history-v3'));
     if (v3) return v3;
 
     const v2 = JSON.parse(localStorage.getItem('bwp-devotion-history-v2'));
@@ -251,8 +266,8 @@ function loadHistory() {
 
 function saveToHistory(entry) {
   const existing = loadHistory();
-  const withoutToday = existing.filter((item) => item.dateKey !== entry.dateKey);
-  const updated = [entry, ...withoutToday].slice(0, 370);
+  const withoutDate = existing.filter((item) => item.dateKey !== entry.dateKey);
+  const updated = [entry, ...withoutDate].slice(0, 370);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
   return updated;
 }
@@ -278,6 +293,7 @@ function makeArchiveSinceJan() {
       day,
       title: `Day ${day}`,
       url: getReadingUrl(copy),
+      date: copy,
       idea
     });
   }
@@ -293,20 +309,20 @@ function App() {
   const [history, setHistory] = useState(loadHistory());
   const [view, setView] = useState('today');
   const [selected, setSelected] = useState(null);
+  const [loadingDate, setLoadingDate] = useState('');
   const [error, setError] = useState('');
   const [notes, setNotes] = useState(localStorage.getItem(NOTES_KEY) || '');
 
   const fullArchive = useMemo(() => {
-    const saved = loadHistory();
-    const savedByDate = new Map(saved.map((item) => [item.dateKey, item]));
+    const savedByDate = new Map(history.map((item) => [item.dateKey, item]));
     return makeArchiveSinceJan().map((item) => ({ ...item, saved: savedByDate.get(item.dateKey) || null }));
   }, [history]);
 
-  async function load() {
+  async function loadToday() {
     setError('');
 
     try {
-      const result = await fetchDevotion();
+      const result = await fetchDevotionForDate(today);
       const savedEntry = {
         ...result,
         text: undefined,
@@ -330,13 +346,7 @@ function App() {
           url: getReadingUrl(today),
           dateKey: todayKey,
           displayDate: formatDisplayDate(today),
-          readingSummaries: [
-            {
-              label: 'Source',
-              reference: 'Alpha source reading',
-              summary: 'Open the source link to view and reflect on today’s three passages.'
-            }
-          ],
+          readingSummaries: [{ label: 'Source', reference: 'Alpha source reading', summary: 'Open the source link to view and reflect on today’s three passages.' }],
           readings: ['Open the source link to view today’s exact three passages.'],
           summary: ['The browser could not fetch the Alpha page automatically. This can happen because of CORS or a temporary proxy issue.'],
           relevance: ['Use the source link, then capture your BWP leadership reflection in the notes box below.']
@@ -348,7 +358,33 @@ function App() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  async function pullArchiveDate(item) {
+    setSelected(item.dateKey);
+    setLoadingDate(item.dateKey);
+    setError('');
+
+    try {
+      const result = await fetchDevotionForDate(item.date);
+      const savedEntry = {
+        ...result,
+        text: undefined,
+        dateKey: item.dateKey,
+        displayDate: item.displayDate,
+        savedAt: new Date().toISOString()
+      };
+
+      const updated = saveToHistory(savedEntry);
+      setHistory(updated);
+
+      if (item.dateKey === todayKey) setData(savedEntry);
+    } catch (e) {
+      setError(`Could not pull ${item.displayDate}: ${e.message}`);
+    } finally {
+      setLoadingDate('');
+    }
+  }
+
+  useEffect(() => { loadToday(); }, []);
   useEffect(() => { localStorage.setItem(NOTES_KEY, notes); }, [notes]);
 
   if (view === 'history') {
@@ -360,14 +396,20 @@ function App() {
           </button>
 
           <h1>Since 1 January 2026</h1>
-          <p>A running archive of Alpha reading links, saved summaries and BWP leadership ideas from the start of the year.</p>
+          <p>Open any day to pull its three Alpha readings, summaries and BWP relevance into your saved archive.</p>
         </section>
+
+        {error && (
+          <section className="warning">
+            <AlertTriangle size={18} /> {error}
+          </section>
+        )}
 
         <section className="archive-intro">
           <Lightbulb size={20} />
           <div>
             <strong>{fullArchive.length} days listed</strong>
-            <p>Saved summaries appear when available. Otherwise, use the Alpha source link and the BWP idea as a reflection prompt.</p>
+            <p>Tap Open on a date. If it has not been saved yet, tap Pull summary for this date and the app will fetch it.</p>
           </div>
         </section>
 
@@ -403,9 +445,18 @@ function App() {
 
                     <h3>Saved BWP relevance</h3>
                     <ul>{item.saved.relevance.map((line, index) => <li key={index}>{line}</li>)}</ul>
+
+                    <button className="secondary" onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey}>
+                      {loadingDate === item.dateKey ? 'Refreshing...' : 'Refresh saved summary'}
+                    </button>
                   </>
                 ) : (
-                  <p>No saved summary for this date yet. Open the source reading and use the BWP idea above as your reflection.</p>
+                  <>
+                    <p>No saved summary for this date yet.</p>
+                    <button onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey}>
+                      {loadingDate === item.dateKey ? 'Pulling summary...' : 'Pull summary for this date'}
+                    </button>
+                  </>
                 )}
 
                 <a href={item.saved?.url || item.url} target="_blank" rel="noreferrer">Open Alpha source reading</a>
@@ -425,7 +476,7 @@ function App() {
         <p>Wisdom, New Testament and Old Testament readings, summarized and translated into practical relevance for running BWP Group.</p>
 
         <div className="actions">
-          <button onClick={load}><RefreshCw size={16} /> Refresh today</button>
+          <button onClick={loadToday}><RefreshCw size={16} /> Refresh today</button>
           <button className="secondary" onClick={() => setView('history')}><History size={16} /> Since 1 Jan 2026</button>
         </div>
       </section>

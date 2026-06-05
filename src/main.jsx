@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { RefreshCw, AlertTriangle, History, ArrowLeft, Lightbulb } from 'lucide-react';
+import { RefreshCw, AlertTriangle, History, ArrowLeft, Lightbulb, DownloadCloud } from 'lucide-react';
 import './style.css';
 
 const SOURCE_URL = 'https://bible.alpha.org/en/#todays-devotion';
 const CLASSIC_DAY_URL = 'https://bible.alpha.org/en/classic/';
-const HISTORY_KEY = 'bwp-devotion-history-v4';
+const HISTORY_KEY = 'bwp-devotion-history-v5';
 const NOTES_KEY = 'bwp-devotion-notes';
 
 const BIBLE_BOOKS = [
@@ -30,6 +30,10 @@ const LEADERSHIP_IDEAS = [
   { theme: 'Unity', keywords: ['together', 'one', 'peace', 'body', 'people', 'church', 'family'], idea: 'Bring two parts of the business closer together around a shared aim.', question: 'Where are teams hearing different versions of the same goal?' },
   { theme: 'Stewardship', keywords: ['faithful', 'money', 'work', 'build', 'house', 'fruit', 'harvest'], idea: 'Treat time, money, energy, and attention as resources to protect.', question: 'What deserves more focus, and what should stop draining energy?' }
 ];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function dayOfYear(date = new Date()) {
   const start = new Date(date.getFullYear(), 0, 0);
@@ -248,7 +252,10 @@ async function fetchDevotionForDate(date) {
 
 function loadHistory() {
   try {
-    const v4 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    const v5 = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    if (v5) return v5;
+
+    const v4 = JSON.parse(localStorage.getItem('bwp-devotion-history-v4'));
     if (v4) return v4;
 
     const v3 = JSON.parse(localStorage.getItem('bwp-devotion-history-v3'));
@@ -264,11 +271,15 @@ function loadHistory() {
   }
 }
 
+function saveHistoryList(list) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 370)));
+}
+
 function saveToHistory(entry) {
   const existing = loadHistory();
   const withoutDate = existing.filter((item) => item.dateKey !== entry.dateKey);
   const updated = [entry, ...withoutDate].slice(0, 370);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  saveHistoryList(updated);
   return updated;
 }
 
@@ -310,6 +321,8 @@ function App() {
   const [view, setView] = useState('today');
   const [selected, setSelected] = useState(null);
   const [loadingDate, setLoadingDate] = useState('');
+  const [autoPulling, setAutoPulling] = useState(false);
+  const [autoProgress, setAutoProgress] = useState('');
   const [error, setError] = useState('');
   const [notes, setNotes] = useState(localStorage.getItem(NOTES_KEY) || '');
 
@@ -317,6 +330,8 @@ function App() {
     const savedByDate = new Map(history.map((item) => [item.dateKey, item]));
     return makeArchiveSinceJan().map((item) => ({ ...item, saved: savedByDate.get(item.dateKey) || null }));
   }, [history]);
+
+  const missingCount = fullArchive.filter((item) => !item.saved).length;
 
   async function loadToday() {
     setError('');
@@ -358,10 +373,12 @@ function App() {
     }
   }
 
-  async function pullArchiveDate(item) {
-    setSelected(item.dateKey);
-    setLoadingDate(item.dateKey);
-    setError('');
+  async function pullArchiveDate(item, quiet = false) {
+    if (!quiet) {
+      setSelected(item.dateKey);
+      setLoadingDate(item.dateKey);
+      setError('');
+    }
 
     try {
       const result = await fetchDevotionForDate(item.date);
@@ -377,11 +394,55 @@ function App() {
       setHistory(updated);
 
       if (item.dateKey === todayKey) setData(savedEntry);
+      return { ok: true, entry: savedEntry };
     } catch (e) {
-      setError(`Could not pull ${item.displayDate}: ${e.message}`);
+      if (!quiet) setError(`Could not pull ${item.displayDate}: ${e.message}`);
+      return { ok: false, error: e.message };
     } finally {
-      setLoadingDate('');
+      if (!quiet) setLoadingDate('');
     }
+  }
+
+  async function autoPullAllMissing() {
+    setAutoPulling(true);
+    setError('');
+
+    let currentHistory = loadHistory();
+    const archive = makeArchiveSinceJan();
+    const savedKeys = new Set(currentHistory.map((item) => item.dateKey));
+    const missing = archive.filter((item) => !savedKeys.has(item.dateKey)).reverse();
+
+    let completed = 0;
+    let failed = 0;
+
+    for (const item of missing) {
+      setAutoProgress(`Pulling ${completed + 1} of ${missing.length}: ${item.displayDate}`);
+
+      try {
+        const result = await fetchDevotionForDate(item.date);
+        const savedEntry = {
+          ...result,
+          text: undefined,
+          dateKey: item.dateKey,
+          displayDate: item.displayDate,
+          savedAt: new Date().toISOString()
+        };
+
+        currentHistory = [savedEntry, ...currentHistory.filter((existing) => existing.dateKey !== item.dateKey)].slice(0, 370);
+        saveHistoryList(currentHistory);
+        setHistory([...currentHistory]);
+        completed += 1;
+
+        if (item.dateKey === todayKey) setData(savedEntry);
+      } catch {
+        failed += 1;
+      }
+
+      await sleep(450);
+    }
+
+    setAutoProgress(`Done. Pulled ${completed} missing days${failed ? `, ${failed} failed` : ''}.`);
+    setAutoPulling(false);
   }
 
   useEffect(() => { loadToday(); }, []);
@@ -396,7 +457,16 @@ function App() {
           </button>
 
           <h1>Since 1 January 2026</h1>
-          <p>Open any day to pull its three Alpha readings, summaries and BWP relevance into your saved archive.</p>
+          <p>Open any day or auto-pull all missing dates into your saved archive.</p>
+
+          <div className="actions">
+            <button onClick={autoPullAllMissing} disabled={autoPulling || missingCount === 0}>
+              <DownloadCloud size={16} />
+              {autoPulling ? 'Auto pulling...' : `Auto pull all missing (${missingCount})`}
+            </button>
+          </div>
+
+          {autoProgress && <p className="progress-text">{autoProgress}</p>}
         </section>
 
         {error && (
@@ -409,7 +479,7 @@ function App() {
           <Lightbulb size={20} />
           <div>
             <strong>{fullArchive.length} days listed</strong>
-            <p>Tap Open on a date. If it has not been saved yet, tap Pull summary for this date and the app will fetch it.</p>
+            <p>The first auto-pull may take a few minutes. Keep the app open until it says done.</p>
           </div>
         </section>
 
@@ -446,14 +516,14 @@ function App() {
                     <h3>Saved BWP relevance</h3>
                     <ul>{item.saved.relevance.map((line, index) => <li key={index}>{line}</li>)}</ul>
 
-                    <button className="secondary" onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey}>
+                    <button className="secondary" onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey || autoPulling}>
                       {loadingDate === item.dateKey ? 'Refreshing...' : 'Refresh saved summary'}
                     </button>
                   </>
                 ) : (
                   <>
                     <p>No saved summary for this date yet.</p>
-                    <button onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey}>
+                    <button onClick={() => pullArchiveDate(item)} disabled={loadingDate === item.dateKey || autoPulling}>
                       {loadingDate === item.dateKey ? 'Pulling summary...' : 'Pull summary for this date'}
                     </button>
                   </>

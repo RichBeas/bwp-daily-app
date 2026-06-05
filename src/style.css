@@ -51,6 +51,12 @@ h1 {
   color: #4b5563;
 }
 
+.progress-text {
+  margin-top: 16px;
+  color: #9a3412 !important;
+  font-weight: 800;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -183,13 +189,8 @@ button:disabled {
   color: #7c2d12;
 }
 
-.history-detail {
-  margin-top: 18px;
-}
-
-.history-detail button {
-  margin-top: 12px;
-}
+.history-detail { margin-top: 18px; }
+.history-detail button { margin-top: 12px; }
 
 textarea {
   width: 100%;

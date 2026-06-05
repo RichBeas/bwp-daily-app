@@ -335,6 +335,7 @@ function buildLocalSummary(text, date = new Date()) {
     readingSummaries,
     readings: readingSummaries.map((item) => `${item.label}: ${item.reference}`),
     summary: readingSummaries.map((item) => `${item.label} — ${item.reference}: ${item.summary}`),
+    combinedSummary: readingSummaries.map((item) => `${item.label} (${item.reference}): ${item.summary}`).join(' '),
     relevance
   };
 }
@@ -472,6 +473,7 @@ function App() {
           readingSummaries: [{ label: 'Source', reference: 'Alpha source reading', summary: 'Open the source link to view and reflect on today’s three passages.' }],
           readings: ['Open the source link to view today’s exact three passages.'],
           summary: ['The browser could not fetch the Alpha page automatically. This can happen because of CORS or a temporary proxy issue.'],
+          combinedSummary: 'The browser could not fetch the Alpha page automatically. Open the source reading to review the three passages.',
           relevance: ['Use the source link, then capture your BWP leadership reflection in the notes box below.']
         });
       }
@@ -613,11 +615,11 @@ function App() {
               <div className="history-detail">
                 {item.saved ? (
                   <>
-                    <h3>Saved three-reading observations</h3>
+                    <h3>Saved three readings</h3>
                     {(item.saved.readingSummaries || []).map((reading, index) => (
                       <div className="reading-summary" key={index}>
-                        <strong>{reading.label}: {reading.reference}</strong>
-                        <p><b>Observation:</b> {reading.summary}</p>
+                        <strong>{index + 1}. {reading.label}: {reading.reference}</strong>
+                        <p><b>Reading summary:</b> {reading.summary}</p>
                         {reading.value && <p><b>BWP value lens:</b> {reading.value}</p>}
                         {reading.valuesObservation && <p>{reading.valuesObservation}</p>}
                         {reading.bwpThought && <p><b>BWP thought:</b> {reading.bwpThought}</p>}
@@ -676,16 +678,21 @@ function App() {
           </section>
 
           <section className="card">
-            <h3>Today’s three readings and BWP values lens</h3>
+            <h3>Today’s three readings</h3>
             {(data.readingSummaries || []).map((reading, i) => (
               <div className="reading-summary" key={i}>
-                <strong>{reading.label}: {reading.reference}</strong>
-                <p><b>Observation:</b> {reading.summary}</p>
+                <strong>{i + 1}. {reading.label}: {reading.reference}</strong>
+                <p><b>Reading summary:</b> {reading.summary}</p>
                 {reading.value && <p><b>BWP value lens:</b> {reading.value}</p>}
                 {reading.valuesObservation && <p>{reading.valuesObservation}</p>}
                 {reading.bwpThought && <p><b>BWP thought:</b> {reading.bwpThought}</p>}
               </div>
             ))}
+          </section>
+
+          <section className="card">
+            <h3>Combined summary</h3>
+            <p>{data.combinedSummary || data.summary?.join(' ')}</p>
           </section>
 
           <section className="card accent">

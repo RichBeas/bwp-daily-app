@@ -239,3 +239,22 @@ textarea {
 .reading-summary b {
   color: #9a3412;
 }
+
+
+.reading-summary {
+  margin-bottom: 14px;
+}
+
+.reading-summary strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.02rem;
+}
+
+.reading-summary p {
+  margin-top: 8px;
+}
+
+.reading-summary b {
+  color: #9a3412;
+}

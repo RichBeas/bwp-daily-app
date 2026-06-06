@@ -421,6 +421,30 @@ function makeArchiveSinceJan() {
   return days.reverse();
 }
 
+
+function ArchiveDailyReadings({ item }) {
+  const readings = item.saved?.readingSummaries || [];
+
+  if (readings.length) {
+    return (
+      <div className="daily-readings">
+        <strong>Daily readings</strong>
+        {readings.map((reading, index) => (
+          <p key={index}>{index + 1}. {reading.label}: {reading.reference}</p>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="daily-readings muted">
+      <strong>Daily readings</strong>
+      <p>Not pulled yet. Use “Pull summary for this date” or “Rebuild all days” to fetch this day’s Wisdom, New Testament and Old Testament readings.</p>
+      <a href={item.url} target="_blank" rel="noreferrer">Open Alpha reading for this day</a>
+    </div>
+  );
+}
+
 function App() {
   const today = useMemo(() => new Date(), []);
   const todayKey = dateKey(today);
@@ -687,6 +711,8 @@ function App() {
                 {selected === item.dateKey ? 'Hide' : 'Open'}
               </button>
             </div>
+
+            <ArchiveDailyReadings item={item} />
 
             <div className="idea">
               <strong>BWP idea: {item.idea.theme}</strong>

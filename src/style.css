@@ -258,3 +258,35 @@ textarea {
 .reading-summary b {
   color: #9a3412;
 }
+
+
+.daily-readings {
+  background: #fffaf5;
+  border: 1px solid #fed7aa;
+  border-radius: 18px;
+  padding: 14px;
+  margin-top: 16px;
+}
+
+.daily-readings strong {
+  display: block;
+  color: #7c2d12;
+  margin-bottom: 8px;
+}
+
+.daily-readings p {
+  margin: 6px 0;
+  line-height: 1.45;
+}
+
+.daily-readings.muted {
+  background: #fff;
+}
+
+.daily-readings.muted p {
+  color: #6b7280;
+}
+
+.daily-readings a {
+  margin-top: 8px;
+}

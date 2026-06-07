@@ -341,19 +341,26 @@ function buildLocalSummary(text, date = new Date()) {
 }
 
 async function fetchDevotionForDate(date) {
-  const url = getReadingUrl(date);
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxyUrl);
+  const day = dayOfYear(date);
+  const apiUrl = `/api/devotion?day=${day}`;
+  const response = await fetch(apiUrl);
 
   if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
 
-  const html = await response.text();
-  const text = stripHtml(html);
+  const payload = await response.json();
 
-  if (!text || text.length < 500) throw new Error('Fetched page did not contain enough readable text.');
+  if (!payload.ok || !payload.html) {
+    throw new Error(payload.error || 'The source page could not be fetched.');
+  }
+
+  const text = stripHtml(payload.html);
+
+  if (!text || text.length < 500) {
+    throw new Error('Fetched page did not contain enough readable text.');
+  }
 
   return {
-    url,
+    url: payload.url || getReadingUrl(date),
     text,
     ...buildLocalSummary(text, date)
   };
@@ -496,7 +503,7 @@ function App() {
           displayDate: formatDisplayDate(today),
           readingSummaries: [{ label: 'Source', reference: 'Alpha source reading', summary: 'Open the source link to view and reflect on today’s three passages.' }],
           readings: ['Open the source link to view today’s exact three passages.'],
-          summary: ['The browser could not fetch the Alpha page automatically. This can happen because of CORS or a temporary proxy issue.'],
+          summary: ['The app could not fetch the Alpha page automatically. Try Refresh today, or open the Alpha source link.'],
           combinedSummary: 'The browser could not fetch the Alpha page automatically. Open the source reading to review the three passages.',
           relevance: ['Use the source link, then capture your BWP leadership reflection in the notes box below.']
         });
